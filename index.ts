@@ -10,11 +10,35 @@ import {Hal, Z80} from "z80-emulator";
 const LOAD_ADDRESS = 0x0100;
 const CPM_CALL_ADDRESS = 0x0005;
 const RECORD_SIZE = 128;
-const DEFAULT_DMA = 0x80;
+const DEFAULT_DMA = 0x0080;
 const DUMP_ASSEMBLY = false;
 const FCB_LENGTH = 33;
-const FCB1_ADDRESS = 0x5C;
-const FCB2_ADDRESS = 0x6C;
+const FCB1_ADDRESS = 0x005C;
+const FCB2_ADDRESS = 0x006C;
+// Location of BDOS + BIOS.
+const BDOS_ADDRESS = 0xFE00;
+const CBIOS_ADDRESS = 0xFF00;
+
+enum CbiosEntryPoint {
+    BOOT, // COLD START
+    WBOOT, // WARM START
+    CONST, // CONSOLE STATUS
+    CONIN, // CONSOLE CHARACTER IN
+    CONOUT, // CONSOLE CHARACTER OUT
+    LIST, // LIST CHARACTER OUT
+    PUNCH, // PUNCH CHARACTER OUT
+    READER, // READER CHARACTER OUT
+    HOME, // MOVE HEAD TO HOME POSITION
+    SELDSK, // SELECT DISK
+    SETTRK, // SET TRACK NUMBER
+    SETSEC, // SET SECTOR NUMBER
+    SETDMA, // SET DMA ADDRESS
+    READ, // READ DISK
+    WRITE, // WRITE DISK
+    LISTST, // RETURN LIST STATUS
+    SECTRAN, // SECTOR TRANSLATE
+}
+const CBIOS_ENTRY_POINT_COUNT = 17;
 
 // http://members.iinet.net.au/~daveb/cpm/fcb.html
 class Fcb {
@@ -99,8 +123,20 @@ class Cpm implements Hal {
             this.memory[LOAD_ADDRESS + i] = bin[i];
         }
 
-        // Put a "ret" at the CP/M syscall address.
-        this.memory[CPM_CALL_ADDRESS] = 0xC9;
+        // Warm boot.
+        this.memory[0] = 0xC3; // JP
+        this.memory[1] = (CBIOS_ADDRESS + 3) & 0xFF;
+        this.memory[2] = ((CBIOS_ADDRESS + 3) >> 8) & 0xFF;
+
+        // Call our BDOS at the CP/M syscall address.
+        this.memory[CPM_CALL_ADDRESS] = 0xC3; // JP
+        this.memory[CPM_CALL_ADDRESS + 1] = BDOS_ADDRESS & 0xFF;
+        this.memory[CPM_CALL_ADDRESS + 2] = (BDOS_ADDRESS >> 8) & 0xFF;
+        this.memory[BDOS_ADDRESS] = 0xC9; // RET
+
+        for (let i = 0; i < CBIOS_ENTRY_POINT_COUNT; i++) {
+            this.memory[CBIOS_ADDRESS + i*3] = 0xC9; // RET
+        }
 
         // Blank out command-line FCBs.
         Fcb.blankOut(this.memory, FCB1_ADDRESS);
@@ -114,7 +150,8 @@ class Cpm implements Hal {
     public tStateCount: number = 0;
     public readMemory(address: number): number {
         const value = this.memory[address];
-        if (address < LOAD_ADDRESS && address != CPM_CALL_ADDRESS &&
+        if (address < LOAD_ADDRESS &&
+            !(address >= CPM_CALL_ADDRESS && address < CPM_CALL_ADDRESS + 3) &&
             !(address >= FCB1_ADDRESS && address < FCB1_ADDRESS + FCB_LENGTH)) {
 
             this.log.write("Reading " + toHex(value, 2) + " from " + toHex(address, 4) + "\n");
@@ -144,7 +181,7 @@ class Cpm implements Hal {
     public contendPort(address: number): void {
     }
 
-    public async handleSyscall(z80: Z80) {
+    public async handleBdosCall(z80: Z80) {
         const f = z80.regs.c;
 
         // http://members.iinet.net.au/~daveb/cpm/bdos.html
@@ -159,7 +196,6 @@ class Cpm implements Hal {
 
             case 2: { // Console output.
                 const value = z80.regs.e;
-                const ch = value < 0x20 ? "0x" + toHex(value, 2) : String.fromCodePoint(value);
                 process.stdout.write(String.fromCodePoint(value));
                 break;
             }
@@ -220,12 +256,35 @@ class Cpm implements Hal {
                 try {
                     fd = fs.openSync(pathname, "r");
                     this.fcbToFdMap.set(z80.regs.de, fd);
+                    fcb.recordNumber = 0;
                     z80.regs.a = 0x00; // Success.
                 } catch (err) {
                     console.log("Can't open " + pathname);
                     this.fcbToFdMap.delete(z80.regs.de);
                     z80.regs.a = 0xFF; // Error.
                 }
+                break;
+            }
+
+            case 20: { // Read sequential.
+                const fcb = new Fcb(this.memory.subarray(z80.regs.de));
+                let fd = this.fcbToFdMap.get(z80.regs.de);
+                if (fd === undefined) {
+                    throw new Error("Reading from unopened FCB");
+                }
+                const recordNumber = fcb.recordNumber;
+                this.log.write("Reading record number " + recordNumber + "\n");
+                z80.regs.a = 0x00;
+                const bytesRead = fs.readSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
+                if (bytesRead === 0) {
+                    z80.regs.a = 0xFF; // End of file.
+                } else if (bytesRead !== RECORD_SIZE) {
+                    // Fill rest with ^Z.
+                    for (let i = bytesRead; i < RECORD_SIZE; i++) {
+                        this.memory[this.dma + i] = 26; // ^Z
+                    }
+                }
+                fcb.recordNumber = recordNumber + 1;
                 break;
             }
 
@@ -256,8 +315,50 @@ class Cpm implements Hal {
             }
 
             default:
-                console.log("Unhandled CP/M syscall: " + f + "\n");
+                this.log.write("Error: Unhandled CP/M syscall: " + f + "\n");
                 // process.exit();
+                break;
+        }
+    }
+
+    public async handleCbiosCall(z80: Z80) {
+        const addr = z80.regs.pc - CBIOS_ADDRESS;
+        if (addr % 3 !== 0) {
+            throw new Error("CBIOS address is not multiple of 3");
+        }
+        const func = (addr / 3) as CbiosEntryPoint;
+        this.log.write("CBIOS function " + CbiosEntryPoint[func] + "\n");
+
+        switch (func) {
+            case CbiosEntryPoint.CONST:
+                z80.regs.a = this.keyQueue.length === 0 ? 0x00 : 0xFF;
+                break;
+
+            case CbiosEntryPoint.CONIN:
+                z80.regs.a = await this.readStdin();
+                break;
+
+            case CbiosEntryPoint.CONOUT:
+                process.stdout.write(String.fromCodePoint(z80.regs.c));
+                break;
+
+            case CbiosEntryPoint.BOOT:
+            case CbiosEntryPoint.WBOOT:
+
+            case CbiosEntryPoint.LIST:
+            case CbiosEntryPoint.PUNCH:
+            case CbiosEntryPoint.READER:
+            case CbiosEntryPoint.HOME:
+            case CbiosEntryPoint.SELDSK:
+            case CbiosEntryPoint.SETTRK:
+            case CbiosEntryPoint.SETSEC:
+            case CbiosEntryPoint.SETDMA:
+            case CbiosEntryPoint.READ:
+            case CbiosEntryPoint.WRITE:
+            case CbiosEntryPoint.LISTST:
+            case CbiosEntryPoint.SECTRAN:
+            default:
+                this.log.write("Error: Unhandled CBIOS function: " + CbiosEntryPoint[func] + "\n");
                 break;
         }
     }
@@ -334,7 +435,13 @@ process.stdin.on("keypress", (str, key) => {
             });
         });
     }
-    cpm.gotKey(str.codePointAt(0));
+    if (str !== undefined) {
+        cpm.gotKey(str.codePointAt(0));
+    } else {
+        for (let ch of key.sequence) {
+            cpm.gotKey(ch.codePointAt(0));
+        }
+    }
 });
 
 async function step() {
@@ -350,11 +457,14 @@ async function step() {
 
     z80.step();
 
-    if (z80.regs.pc === CPM_CALL_ADDRESS) {
-        await cpm.handleSyscall(z80);
-    } else if (z80.regs.pc < LOAD_ADDRESS) {
-        console.log("Unhandled PC address: 0x" + toHex(z80.regs.pc, 4) + "\n");
-        // process.exit();
+    if (z80.regs.pc === BDOS_ADDRESS) {
+        await cpm.handleBdosCall(z80);
+    } else if (z80.regs.pc >= CBIOS_ADDRESS) {
+        await cpm.handleCbiosCall(z80);
+    } else if (z80.regs.pc === 0) {
+        process.exit();
+    } else if (z80.regs.pc < LOAD_ADDRESS && z80.regs.pc !== CPM_CALL_ADDRESS) {
+        log.write("Unhandled PC address: 0x" + toHex(z80.regs.pc, 4) + "\n");
     }
 }
 
