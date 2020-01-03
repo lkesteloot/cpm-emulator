@@ -306,11 +306,16 @@ class Cpm implements Hal {
                 }
                 const recordNumber = fcb.recordNumber;
                 this.log.write("Reading record number " + recordNumber + "\n");
+                z80.regs.a = 0x00;
                 const bytesRead = fs.readSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
-                if (bytesRead !== RECORD_SIZE) {
-                    throw new Error("Read only " + bytesRead + " bytes");
+                if (bytesRead === 0) {
+                    z80.regs.a = 0x01; // End of file.
+                } else if (bytesRead !== RECORD_SIZE) {
+                    // Fill rest with ^Z.
+                    for (let i = bytesRead; i < RECORD_SIZE; i++) {
+                        this.memory[this.dma + i] = 26; // ^Z
+                    }
                 }
-                fcb.recordNumber = recordNumber + 1;
                 break;
             }
 
