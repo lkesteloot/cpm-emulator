@@ -12,7 +12,6 @@ const CPM_CALL_ADDRESS = 0x0005;
 const RECORD_SIZE = 128;
 const DEFAULT_DMA = 0x0080;
 const DUMP_ASSEMBLY = false;
-const FCB_LENGTH = 33;
 const FCB1_ADDRESS = 0x005C;
 const FCB2_ADDRESS = 0x006C;
 // Location of BDOS + BIOS.
@@ -65,11 +64,22 @@ class Fcb {
         return name;
     }
 
-    get recordNumber(): number {
+    // For sequential access.
+    get currentRecord(): number {
+        return this.mem[0x20] | (this.mem[0x0C] << 8);
+    }
+
+    set currentRecord(n: number) {
+        this.mem[0x20] = n & 0xFF;
+        this.mem[0x0C] = (n >> 8) & 0xFF;
+    }
+
+    // For random access.
+    get randomRecord(): number {
         return this.mem[0x21] | (this.mem[0x22] << 8);
     }
 
-    set recordNumber(n: number) {
+    set randomRecord(n: number) {
         this.mem[0x21] = n & 0xFF;
         this.mem[0x22] = (n >> 8) & 0xFF;
     }
@@ -85,10 +95,6 @@ class Fcb {
         }
 
         return fileType;
-    }
-
-    public dump(out: Writable): void {
-        out.write("FCB: " + this.drive + ":" + this.name + "." + this.fileType + "\n");
     }
 
     public getFilename(): string {
@@ -148,23 +154,12 @@ class Cpm implements Hal {
     }
 
     public tStateCount: number = 0;
-    public readMemory(address: number): number {
-        const value = this.memory[address];
-        if (address < LOAD_ADDRESS &&
-            !(address >= CPM_CALL_ADDRESS && address < CPM_CALL_ADDRESS + 3) &&
-            !(address >= FCB1_ADDRESS && address < FCB1_ADDRESS + FCB_LENGTH)) {
 
-            this.log.write("Reading " + toHex(value, 2) + " from " + toHex(address, 4) + "\n");
-        }
-        return value;
+    public readMemory(address: number): number {
+        return this.memory[address];
     }
 
     public writeMemory(address: number, value: number): void {
-        if (address < LOAD_ADDRESS &&
-            !(address >= FCB1_ADDRESS && address < FCB1_ADDRESS + FCB_LENGTH)) {
-
-            this.log.write("Writing " + toHex(value, 2) + " to " + toHex(address, 4) + "\n");
-        }
         this.memory[address] = value;
     }
 
@@ -244,24 +239,47 @@ class Cpm implements Hal {
 
             case 15: { // Open file.
                 const fcb = new Fcb(this.memory.subarray(z80.regs.de));
-                fcb.dump(this.log);
-                const drive = fcb.drive === 0 ? this.currentDrive : fcb.drive - 1;
-                const dir = this.driveDirMap.get(drive);
-                if (dir === undefined) {
-                    throw new Error("No dir for drive " + drive);
-                }
-                const pathname = path.join(dir, fcb.getFilename());
-                this.log.write("Opening " + pathname + "\n");
+                this.log.write("Opening " + fcb.getFilename() + "\n");
+                const pathname = this.makePathname(fcb);
                 let fd: number;
                 try {
-                    fd = fs.openSync(pathname, "r");
+                    fd = fs.openSync(pathname, "r+");
                     this.fcbToFdMap.set(z80.regs.de, fd);
-                    fcb.recordNumber = 0;
+                    fcb.currentRecord = 0;
                     z80.regs.a = 0x00; // Success.
                 } catch (err) {
                     console.log("Can't open " + pathname);
                     this.fcbToFdMap.delete(z80.regs.de);
                     z80.regs.a = 0xFF; // Error.
+                }
+                break;
+            }
+
+            case 16: { // Close file.
+                const fcb = new Fcb(this.memory.subarray(z80.regs.de));
+                this.log.write("Closing " + fcb.getFilename() + "\n");
+                let fd = this.fcbToFdMap.get(z80.regs.de);
+                if (fd === undefined) {
+                    throw new Error("Closing unopened FCB");
+                }
+                fs.closeSync(fd);
+                this.fcbToFdMap.delete(fd);
+                z80.regs.a = 0x00; // Success.
+                break;
+            }
+
+            case 19: { // Delete file.
+                const fcb = new Fcb(this.memory.subarray(z80.regs.de));
+                // TODO the filename can contain wildcards.
+                this.log.write("Deleting " + fcb.getFilename() + "\n");
+                const pathname = this.makePathname(fcb);
+                try {
+                    fs.accessSync(pathname); // Throws if file doesn't exist.
+                    fs.unlinkSync(pathname);
+                    z80.regs.a = 0x00; // Success.
+                } catch (err) {
+                    // File doesn't exist.
+                    z80.regs.a = 0xFF;
                 }
                 break;
             }
@@ -272,19 +290,80 @@ class Cpm implements Hal {
                 if (fd === undefined) {
                     throw new Error("Reading from unopened FCB");
                 }
-                const recordNumber = fcb.recordNumber;
-                this.log.write("Reading record number " + recordNumber + "\n");
+                const recordNumber = fcb.currentRecord;
+                this.log.write("Sequential reading record number " + recordNumber + " from " + fcb.getFilename() + "\n");
                 z80.regs.a = 0x00;
                 const bytesRead = fs.readSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
                 if (bytesRead === 0) {
-                    z80.regs.a = 0xFF; // End of file.
-                } else if (bytesRead !== RECORD_SIZE) {
+                    z80.regs.a = 0x01; // End of file.
+                } else {
                     // Fill rest with ^Z.
                     for (let i = bytesRead; i < RECORD_SIZE; i++) {
                         this.memory[this.dma + i] = 26; // ^Z
                     }
                 }
-                fcb.recordNumber = recordNumber + 1;
+                fcb.currentRecord = recordNumber + 1;
+                break;
+            }
+
+            case 21: { // Write sequential.
+                const fcb = new Fcb(this.memory.subarray(z80.regs.de));
+                let fd = this.fcbToFdMap.get(z80.regs.de);
+                if (fd === undefined) {
+                    throw new Error("Writing to unopened FCB");
+                }
+                const recordNumber = fcb.currentRecord;
+                this.log.write("Sequential writing record number " + recordNumber + " to " + fcb.getFilename() + "\n");
+                let bytesWritten: number;
+                try {
+                    bytesWritten = fs.writeSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
+                    if (bytesWritten !== RECORD_SIZE) {
+                        throw new Error("Only wrote " + bytesWritten);
+                    }
+                } catch (err) {
+                    console.log("Can't write to file");
+                    console.log(err);
+                    await this.exit();
+                }
+                fcb.currentRecord = recordNumber + 1;
+                z80.regs.a = 0x00; // Success.
+                break;
+            }
+
+            case 22: { // Make file.
+                const fcb = new Fcb(this.memory.subarray(z80.regs.de));
+                let fd = this.fcbToFdMap.get(z80.regs.de);
+                if (fd !== undefined) {
+                    throw new Error("Making an opened FCB");
+                }
+                this.log.write("Making " + fcb.getFilename() + "\n");
+                const pathname = this.makePathname(fcb);
+                try {
+                    fd = fs.openSync(pathname, "wx+");
+                    this.fcbToFdMap.set(z80.regs.de, fd);
+                    fcb.currentRecord = 0;
+                    z80.regs.a = 0x00; // Success.
+                } catch (err) {
+                    console.log("Can't make " + pathname);
+                    this.fcbToFdMap.delete(z80.regs.de);
+                    z80.regs.a = 0xFF; // Error.
+                }
+                break;
+            }
+
+            case 23: { // Rename file.
+                const fcbSrc = new Fcb(this.memory.subarray(z80.regs.de));
+                const fcbDest = new Fcb(this.memory.subarray(z80.regs.de + 16));
+                this.log.write("Renaming " + fcbSrc.getFilename() + " to " + fcbDest.getFilename() + "\n");
+                const pathnameSrc = this.makePathname(fcbSrc);
+                const pathnameDest = this.makePathname(fcbDest);
+                try {
+                    fs.renameSync(pathnameSrc, pathnameDest);
+                    z80.regs.a = 0x00; // Success.
+                } catch (err) {
+                    this.log.write("Error renaming: " + err);
+                    z80.regs.a = 0xFF; // Error.
+                }
                 break;
             }
 
@@ -304,8 +383,8 @@ class Cpm implements Hal {
                 if (fd === undefined) {
                     throw new Error("Reading from unopened FCB");
                 }
-                const recordNumber = fcb.recordNumber;
-                this.log.write("Reading record number " + recordNumber + "\n");
+                const recordNumber = fcb.randomRecord;
+                this.log.write("Random reading record number " + recordNumber + " from " + fcb.getFilename() + "\n");
                 z80.regs.a = 0x00;
                 const bytesRead = fs.readSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
                 if (bytesRead === 0) {
@@ -316,12 +395,12 @@ class Cpm implements Hal {
                         this.memory[this.dma + i] = 26; // ^Z
                     }
                 }
+                fcb.currentRecord = recordNumber;
                 break;
             }
 
             default:
                 this.log.write("Error: Unhandled CP/M syscall: " + f + "\n");
-                // process.exit();
                 break;
         }
     }
@@ -382,6 +461,18 @@ class Cpm implements Hal {
         }
     }
 
+    public async exit() {
+        this.log.write("Exiting...\n");
+        this.log.end(() => {
+            this.printer.end(() => {
+                process.exit();
+            });
+        });
+
+        // Hang forever.
+        return new Promise(resolve => {});
+    }
+
     /**
      * Block until we have a key from stdin.
      */
@@ -396,6 +487,18 @@ class Cpm implements Hal {
                 resolve(this.keyQueue.shift());
             }
         });
+    }
+
+    /**
+     * Make a full pathname from an FCB.
+     */
+    private makePathname(fcb: Fcb): string {
+        const drive = fcb.drive === 0 ? this.currentDrive : fcb.drive - 1;
+        const dir = this.driveDirMap.get(drive);
+        if (dir === undefined) {
+            throw new Error("No dir for drive " + drive);
+        }
+        return path.join(dir, fcb.getFilename());
     }
 }
 
@@ -431,16 +534,11 @@ z80.regs.pc = LOAD_ADDRESS;
 // Set up keyboard input.
 readline.emitKeypressEvents(process.stdin);
 process.stdin.setRawMode(true);
-process.stdin.on("keypress", (str, key) => {
+process.stdin.on("keypress", async (str, key) => {
     // Quit on Ctrl-C.
     if (key.sequence === "\u0003") {
-        log.end(() => {
-            printer.end(() => {
-                process.exit();
-            });
-        });
-    }
-    if (str !== undefined) {
+        await cpm.exit();
+    } else if (str !== undefined) {
         cpm.gotKey(str.codePointAt(0));
     } else {
         for (let ch of key.sequence) {
@@ -467,19 +565,16 @@ async function step() {
     } else if (z80.regs.pc >= CBIOS_ADDRESS) {
         await cpm.handleCbiosCall(z80);
     } else if (z80.regs.pc === 0) {
-        process.exit();
+        await cpm.exit();
     } else if (z80.regs.pc < LOAD_ADDRESS && z80.regs.pc !== CPM_CALL_ADDRESS) {
         log.write("Unhandled PC address: 0x" + toHex(z80.regs.pc, 4) + "\n");
     }
 }
 
 async function tick() {
-    const before = Date.now();
     for (let i = 0; i < 100_000; i++) {
         await step();
     }
-    const elapsed = Date.now() - before;
-    log.write("Tick time: " + elapsed + " ms\n");
 }
 function go() {
    tick().then(r => setTimeout(go, 0));
