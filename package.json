@@ -1,0 +1,22 @@
+{
+  "name": "cpm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "Lawrence Kesteloot <lk@teamten.com> (https://www.teamten.com/lawrence/)",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^4.0.1",
+    "z80-base": "^1.0.3",
+    "z80-disasm": "file:../z80-disasm",
+    "z80-emulator": "^1.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^13.1.2",
+    "typescript": "^3.7.4"
+  }
+}

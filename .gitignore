@@ -1,0 +1,6 @@
+/.idea
+*.iml
+/cpm.log
+/cpm.prn
+index.js
+node_modules
