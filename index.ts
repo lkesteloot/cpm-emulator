@@ -6,12 +6,17 @@ import {Writable} from "stream";
 import {toHex} from "z80-base";
 import {Disasm, Instruction} from "z80-disasm";
 import {Hal, Z80} from "z80-emulator";
+import NullWritable from "null-writable";
+
+// Compile-time configuration.
+const DUMP_ASSEMBLY = false;
+const WRITE_LOG = false;
+const WRITE_PRINTER = false;
 
 const LOAD_ADDRESS = 0x0100;
 const CPM_CALL_ADDRESS = 0x0005;
 const RECORD_SIZE = 128;
 const DEFAULT_DMA = 0x0080;
-const DUMP_ASSEMBLY = false;
 const FCB1_ADDRESS = 0x005C;
 const FCB2_ADDRESS = 0x006C;
 // Location of BDOS + BIOS.
@@ -39,9 +44,15 @@ enum CbiosEntryPoint {
 }
 const CBIOS_ENTRY_POINT_COUNT = 17;
 
-const FD_CRYPT = 0xBEEF;
+const FD_SIGNATURE = 0xBEEF;
 
-// http://members.iinet.net.au/~daveb/cpm/fcb.html
+/**
+ * File Control Block, a 36-byte block describing an open file. This object
+ * is a view into memory. Changes to the parameters write through to the
+ * underlying memory.
+ *
+ * http://members.iinet.net.au/~daveb/cpm/fcb.html
+ */
 class Fcb {
     private readonly mem: Uint8Array;
 
@@ -68,10 +79,17 @@ class Fcb {
         this.fd = 0;
     }
 
+    /**
+     * The drive number. This is typically 0 to mean "current drive", then
+     * 1 for A:, 2 for B:, etc.
+     */
     get drive(): number {
         return this.mem[0];
     }
 
+    /**
+     * The main name of the file (the part without the extension).
+     */
     get name(): string {
         let name = "";
 
@@ -85,6 +103,9 @@ class Fcb {
         return name;
     }
 
+    /**
+     * The file type i.e., the extension, without the dot.
+     */
     get fileType(): string {
         let fileType = "";
 
@@ -98,10 +119,16 @@ class Fcb {
         return fileType;
     }
 
+    /**
+     * The current extent number.
+     */
     get ex(): number {
         return this.mem[0x0C];
     }
 
+    /**
+     * The current extent number.
+     */
     set ex(n: number) {
         this.mem[0x0C] = n;
     }
@@ -114,15 +141,23 @@ class Fcb {
         this.mem[0x0E] = n;
     }
 
+    /**
+     * The current record number within the current extent.
+     */
     get cr(): number {
         return this.mem[0x20];
     }
 
+    /**
+     * The current record number within the current extent.
+     */
     set cr(n: number) {
         this.mem[0x20] = n;
     }
 
-    // For sequential access.
+    /**
+     * Computed current record number, for sequential access.
+     */
     get currentRecord(): number {
         if (this.cr > 127 || this.ex > 31 || this.s2 > 16 || (this.s2 === 16 && (this.cr !== 0 || this.ex !== 0))) {
             throw new Error("Invalid current record");
@@ -130,42 +165,69 @@ class Fcb {
         return this.cr | (this.ex << 7) | (this.s2 << 12);
     }
 
+    /**
+     * Computed current record, for sequential access.
+     */
     set currentRecord(n: number) {
         this.cr = n & 0x7F;
         this.ex = (n >> 7) & 0x1F;
         this.s2 = n >> 12;
     }
 
-    // For random access.
+    /**
+     * Computed record number, for random access.
+     */
     get randomRecord(): number {
         return this.mem[0x21] | (this.mem[0x22] << 8);
     }
 
+    /**
+     * Computed record number, for random access.
+     */
+    set randomRecord(n: number) {
+        this.mem[0x21] = n & 0xFF;
+        this.mem[0x22] = (n >> 8) & 0xFF;
+        // Indicate overflow.
+        this.mem[0x23] = n > 0xFFFF ? 0x01 : 0x00;
+    }
+
+    /**
+     * Unix file descriptor, if the file is open, or 0 if not yet open.
+     */
     get fd(): number {
         const n1 = this.mem[0x10] | (this.mem[0x11] << 8);
         const n2 = this.mem[0x12] | (this.mem[0x13] << 8);
 
-        if ((n1 ^ FD_CRYPT) !== n2) {
+        if ((n1 ^ FD_SIGNATURE) !== n2) {
             throw new Error("Invalid FD: " + n1 + " and " + n2);
         }
 
         return n1;
     }
 
+    /**
+     * Unix file descriptor, if the file is open, or 0 if not yet open.
+     */
     set fd(n: number) {
         this.mem[0x10] = n & 0xFF;
         this.mem[0x11] = (n >> 8) & 0xFF;
 
         // Store it differently so we can tell if it's invalid on read.
-        n ^= FD_CRYPT;
+        n ^= FD_SIGNATURE;
         this.mem[0x12] = n & 0xFF;
         this.mem[0x13] = (n >> 8) & 0xFF;
     }
 
+    /**
+     * Computed full filename.
+     */
     public getFilename(): string {
         return this.name + "." + this.fileType;
     }
 
+    /**
+     * Set the filename and file type part of the FCB to spaces.
+     */
     public static blankOut(memory: Uint8Array, address: number): void {
         // Current drive.
         memory[address] = 0;
@@ -176,16 +238,50 @@ class Fcb {
     }
 }
 
+/**
+ * CP/M hardware abstraction layer. This provides the memory for the Z80, but
+ * also intercepts calls to the CP/M BDOS and CBIOS routines.
+ */
 class Cpm implements Hal {
+    /**
+     * Flat memory array for RAM.
+     */
     private memory = new Uint8Array(64*1024);
+    /**
+     * Log file for dumping the internal state of the emulator.
+     */
     private readonly log: Writable;
+    /**
+     * Printer output.
+     */
     private readonly printer: Writable;
-    private currentDrive = 0; // 0 = A, 1 = B, ...
+    /**
+     * The current drive: 0 = A, 1 = B, ...
+     */
+    private currentDrive = 0;
+    /**
+     * Function to call next time we get a keystroke. If this
+     * is defined, then the emulator is blocked waiting for a key.
+     */
     private keyResolve: ((key: number) => void) | undefined;
+    /**
+     * Queue of keys to supply next time the emulator needs one.
+     * The next one to use is at the front (shift).
+     */
     private keyQueue: number[] = [];
+    /**
+     * Map from drive number (0 = A, etc.) to host directory.
+     */
     private driveDirMap = new Map<number, string>();
+    /**
+     * Location of the Direct Memory Access buffer. This is used by
+     * BDOS to read and write records, and occasionally for other
+     * large results.
+     */
     private dma = DEFAULT_DMA;
-    private activeFcbs: number[] = [];
+    /**
+     * List of sorted directory entry names when iterating through a directory.
+     */
     private dirEntries: string[] = [];
 
     constructor(bin: Buffer, log: Writable, printer: Writable) {
@@ -206,6 +302,7 @@ class Cpm implements Hal {
         this.memory[CPM_CALL_ADDRESS + 2] = (BDOS_ADDRESS >> 8) & 0xFF;
         this.memory[BDOS_ADDRESS] = 0xC9; // RET
 
+        // Set all CBIOS routines to just return.
         for (let i = 0; i < CBIOS_ENTRY_POINT_COUNT; i++) {
             this.memory[CBIOS_ADDRESS + i*3] = 0xC9; // RET
         }
@@ -215,44 +312,64 @@ class Cpm implements Hal {
         Fcb.blankOut(this.memory, FCB2_ADDRESS);
     }
 
+    /**
+     * Configure a drive to map to a host directory.
+     *
+     * @param drive 0 = A, etc.
+     * @param dir host directory.
+     */
     public setDrive(drive: number, dir: string): void {
         this.driveDirMap.set(drive, dir);
     }
 
+    /**
+     * Number of clock cycles emulated so far.
+     */
     public tStateCount: number = 0;
 
+    /**
+     * Read a byte of memory.
+     */
     public readMemory(address: number): number {
-        const value = this.memory[address];
-        for (const fcb of this.activeFcbs) {
-            if (address >= fcb && address < fcb + 33) {
-                this.log.write(`Reading ${toHex(value, 2)} from index ${address - fcb} of FCB at ${toHex(fcb, 4)}\n`);
-            }
-        }
-        return value;
+        return this.memory[address];
     }
 
+    /**
+     * Write a byte of memory.
+     */
     public writeMemory(address: number, value: number): void {
-        for (const fcb of this.activeFcbs) {
-            if (address >= fcb && address < fcb + 33) {
-                this.log.write(`Writing ${toHex(value, 2)} to index ${address - fcb} of FCB at ${toHex(fcb, 4)}\n`);
-            }
-        }
         this.memory[address] = value;
     }
 
+    /**
+     * Unused.
+     */
     public contendMemory(address: number): void {
     }
 
+    /**
+     * Unused.
+     */
     public readPort(address: number): number {
         return 0;
     }
 
+    /**
+     * Unused.
+     */
     public writePort(address: number, value: number): void {
     }
 
+    /**
+     * Unused.
+     */
     public contendPort(address: number): void {
     }
 
+    /**
+     * When the guest program calls BDOS by calling 0x0005, we
+     * handle the request here.
+     */
     public async handleBdosCall(z80: Z80) {
         const f = z80.regs.c;
 
@@ -328,7 +445,6 @@ class Cpm implements Hal {
                 try {
                     fcb.fd = fs.openSync(pathname, "r+");
                     z80.regs.a = 0x00; // Success.
-                    this.activeFcbs.push(z80.regs.de);
                 } catch (err) {
                     this.log.write("Can't open " + pathname + "\n");
                     fcb.fd = 0;
@@ -347,12 +463,6 @@ class Cpm implements Hal {
                 fs.closeSync(fd);
                 fcb.fd = 0;
                 z80.regs.a = 0x00; // Success.
-                const i = this.activeFcbs.indexOf(z80.regs.de);
-                if (i === -1) {
-                    this.log.write("Error: Did not find FCB " + z80.regs.de + "\n");
-                } else {
-                    this.activeFcbs.splice(i, 1);
-                }
                 break;
             }
 
@@ -369,6 +479,7 @@ class Cpm implements Hal {
                         break;
                     }
                     if (entry.isFile()) {
+                        // TODO match wildcard in FCB.
                         this.dirEntries.push(entry.name);
                     }
                 }
@@ -461,7 +572,6 @@ class Cpm implements Hal {
                 try {
                     fcb.fd = fs.openSync(pathname, "wx+");
                     z80.regs.a = 0x00; // Success.
-                    this.activeFcbs.push(z80.regs.de);
                 } catch (err) {
                     console.log("Can't make " + pathname);
                     fcb.fd = 0;
@@ -538,12 +648,31 @@ class Cpm implements Hal {
                 break;
             }
 
+            case 35: { // Compute file size.
+                const fcb = new Fcb(this.memory.subarray(z80.regs.de));
+                this.log.write(`Compute file size of ${fcb.getFilename()}\n`);
+                try {
+                    const stat = fs.statSync(this.makePathname(fcb));
+                    const size = Math.ceil(stat.size/RECORD_SIZE);
+                    this.log.write(`Size is ${size} records`);
+                    fcb.randomRecord = size;
+                    z80.regs.a = 0x00; // Success.
+                } catch (err) {
+                    this.log.write(`File not found`);
+                    z80.regs.a = 0xFF; // Error
+                }
+                break;
+            }
+
             default:
                 this.log.write("Error: Unhandled CP/M syscall: " + f + "\n");
                 break;
         }
     }
 
+    /**
+     * Some guest programs call the CBIOS directly. We intercept those calls here.
+     */
     public async handleCbiosCall(z80: Z80) {
         const addr = z80.regs.pc - CBIOS_ADDRESS;
         if (addr % 3 !== 0) {
@@ -567,7 +696,6 @@ class Cpm implements Hal {
 
             case CbiosEntryPoint.BOOT:
             case CbiosEntryPoint.WBOOT:
-
             case CbiosEntryPoint.LIST:
             case CbiosEntryPoint.PUNCH:
             case CbiosEntryPoint.READER:
@@ -600,6 +728,9 @@ class Cpm implements Hal {
         }
     }
 
+    /**
+     * Exit the CP/M emulator. Does not call its returned promise.
+     */
     public async exit() {
         this.log.write("Exiting...\n");
         this.log.end(() => {
@@ -713,6 +844,17 @@ class Cpm implements Hal {
     }
 }
 
+/**
+ * Create a map from PC location to disassembled instruction.
+ */
+function makeInstructionMap(bin: Uint8Array, org: number): Map<number, Instruction> {
+    const disasm = new Disasm(bin);
+    disasm.org = org;
+    const instructions = disasm.disassembleAll();
+    return new Map<number, Instruction>(
+        instructions.map((instruction) => [instruction.address, instruction]));
+}
+
 program
     .option('--drive <dir>', 'dir to mount as drive A:')
     .arguments("<program.com>");
@@ -727,15 +869,12 @@ const driveADir = program.drive ?? ".";
 const binPathname: string = path.join(driveADir, program.args[0]);
 
 // Set up logging.
-const log = fs.createWriteStream("cpm.log");
-const printer = fs.createWriteStream("cpm.prn");
+const log = WRITE_LOG ? fs.createWriteStream("cpm.log") : new NullWritable();
+const printer = WRITE_PRINTER ? fs.createWriteStream("cpm.prn") : new NullWritable();
 
+// Load the binary and set up the virtual machine.
 const bin = fs.readFileSync(binPathname);
-const disasm = new Disasm(bin);
-disasm.org = LOAD_ADDRESS;
-const instructions = disasm.disassembleAll();
-const instructionMap = new Map<number, Instruction>(
-    instructions.map((instruction) => [instruction.address, instruction]));
+const instructionMap = DUMP_ASSEMBLY ? makeInstructionMap(bin, LOAD_ADDRESS) : undefined;
 const cpm = new Cpm(bin, log, printer);
 cpm.setDrive(0, driveADir);
 const z80 = new Z80(cpm);
@@ -758,8 +897,10 @@ process.stdin.on("keypress", async (str, key) => {
     }
 });
 
+// Execute one opcode and intercept any CP/M calls.
 async function step() {
-    if (DUMP_ASSEMBLY) {
+    // Show disassembly if necessary.
+    if (instructionMap !== undefined) {
         const instruction = instructionMap.get(z80.regs.pc);
         if (instruction !== undefined) {
             if (instruction.label !== undefined) {

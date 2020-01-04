@@ -11,6 +11,7 @@
   "license": "MIT",
   "dependencies": {
     "commander": "^4.0.1",
+    "null-writable": "^1.0.5",
     "z80-base": "^1.0.3",
     "z80-disasm": "file:../z80-disasm",
     "z80-emulator": "^1.0.4"
