@@ -39,12 +39,33 @@ enum CbiosEntryPoint {
 }
 const CBIOS_ENTRY_POINT_COUNT = 17;
 
+const FD_CRYPT = 0xBEEF;
+
 // http://members.iinet.net.au/~daveb/cpm/fcb.html
 class Fcb {
     private readonly mem: Uint8Array;
 
     constructor(mem: Uint8Array) {
         this.mem = mem;
+    }
+
+    public dump(log: Writable, address: number): void {
+        log.write(`FCB at ${toHex(address, 4)}: ${this.getFilename()}, ex=${toHex(this.mem[12], 2)}, s1=${toHex(this.mem[13], 2)}, `);
+        log.write(`s2=${toHex(this.mem[14], 2)}, rc=${toHex(this.mem[15], 2)}, d=`);
+        for (let i = 0; i < 16; i++) {
+            log.write(toHex(this.mem[16 + i], 2));
+        }
+        log.write(`, cr=${toHex(this.mem[32], 2)}, r=`);
+        for (let i = 0; i < 3; i++) {
+            log.write(toHex(this.mem[35 - i], 2));
+        }
+        log.write("\n");
+    }
+
+    // Clear internal state.
+    public clear(): void {
+        this.s2 = 0;
+        this.fd = 0;
     }
 
     get drive(): number {
@@ -64,26 +85,6 @@ class Fcb {
         return name;
     }
 
-    // For sequential access.
-    get currentRecord(): number {
-        return this.mem[0x20] | (this.mem[0x0C] << 8);
-    }
-
-    set currentRecord(n: number) {
-        this.mem[0x20] = n & 0xFF;
-        this.mem[0x0C] = (n >> 8) & 0xFF;
-    }
-
-    // For random access.
-    get randomRecord(): number {
-        return this.mem[0x21] | (this.mem[0x22] << 8);
-    }
-
-    set randomRecord(n: number) {
-        this.mem[0x21] = n & 0xFF;
-        this.mem[0x22] = (n >> 8) & 0xFF;
-    }
-
     get fileType(): string {
         let fileType = "";
 
@@ -95,6 +96,70 @@ class Fcb {
         }
 
         return fileType;
+    }
+
+    get ex(): number {
+        return this.mem[0x0C];
+    }
+
+    set ex(n: number) {
+        this.mem[0x0C] = n;
+    }
+
+    get s2(): number {
+        return this.mem[0x0E];
+    }
+
+    set s2(n: number) {
+        this.mem[0x0E] = n;
+    }
+
+    get cr(): number {
+        return this.mem[0x20];
+    }
+
+    set cr(n: number) {
+        this.mem[0x20] = n;
+    }
+
+    // For sequential access.
+    get currentRecord(): number {
+        if (this.cr > 127 || this.ex > 31 || this.s2 > 16 || (this.s2 === 16 && (this.cr !== 0 || this.ex !== 0))) {
+            throw new Error("Invalid current record");
+        }
+        return this.cr | (this.ex << 7) | (this.s2 << 12);
+    }
+
+    set currentRecord(n: number) {
+        this.cr = n & 0x7F;
+        this.ex = (n >> 7) & 0x1F;
+        this.s2 = n >> 12;
+    }
+
+    // For random access.
+    get randomRecord(): number {
+        return this.mem[0x21] | (this.mem[0x22] << 8);
+    }
+
+    get fd(): number {
+        const n1 = this.mem[0x10] | (this.mem[0x11] << 8);
+        const n2 = this.mem[0x12] | (this.mem[0x13] << 8);
+
+        if ((n1 ^ FD_CRYPT) !== n2) {
+            throw new Error("Invalid FD: " + n1 + " and " + n2);
+        }
+
+        return n1;
+    }
+
+    set fd(n: number) {
+        this.mem[0x10] = n & 0xFF;
+        this.mem[0x11] = (n >> 8) & 0xFF;
+
+        // Store it differently so we can tell if it's invalid on read.
+        n ^= FD_CRYPT;
+        this.mem[0x12] = n & 0xFF;
+        this.mem[0x13] = (n >> 8) & 0xFF;
     }
 
     public getFilename(): string {
@@ -119,8 +184,9 @@ class Cpm implements Hal {
     private keyResolve: ((key: number) => void) | undefined;
     private keyQueue: number[] = [];
     private driveDirMap = new Map<number, string>();
-    private fcbToFdMap = new Map<number, number>();
     private dma = DEFAULT_DMA;
+    private activeFcbs: number[] = [];
+    private dirEntries: string[] = [];
 
     constructor(bin: Buffer, log: Writable, printer: Writable) {
         this.log = log;
@@ -156,10 +222,21 @@ class Cpm implements Hal {
     public tStateCount: number = 0;
 
     public readMemory(address: number): number {
-        return this.memory[address];
+        const value = this.memory[address];
+        for (const fcb of this.activeFcbs) {
+            if (address >= fcb && address < fcb + 33) {
+                this.log.write(`Reading ${toHex(value, 2)} from index ${address - fcb} of FCB at ${toHex(fcb, 4)}\n`);
+            }
+        }
+        return value;
     }
 
     public writeMemory(address: number, value: number): void {
+        for (const fcb of this.activeFcbs) {
+            if (address >= fcb && address < fcb + 33) {
+                this.log.write(`Writing ${toHex(value, 2)} to index ${address - fcb} of FCB at ${toHex(fcb, 4)}\n`);
+            }
+        }
         this.memory[address] = value;
     }
 
@@ -221,6 +298,11 @@ class Cpm implements Hal {
                 break;
             }
 
+            case 13: { // Reset disk system.
+                // Set the disk to read/write.
+                break;
+            }
+
             case 14: { // Select drive.
                 let status;
                 const value = z80.regs.e;
@@ -239,17 +321,17 @@ class Cpm implements Hal {
 
             case 15: { // Open file.
                 const fcb = new Fcb(this.memory.subarray(z80.regs.de));
-                this.log.write("Opening " + fcb.getFilename() + "\n");
+                fcb.clear();
+                this.log.write(`Opening ${fcb.getFilename()}\n`);
+                fcb.dump(this.log, z80.regs.de);
                 const pathname = this.makePathname(fcb);
-                let fd: number;
                 try {
-                    fd = fs.openSync(pathname, "r+");
-                    this.fcbToFdMap.set(z80.regs.de, fd);
-                    fcb.currentRecord = 0;
+                    fcb.fd = fs.openSync(pathname, "r+");
                     z80.regs.a = 0x00; // Success.
+                    this.activeFcbs.push(z80.regs.de);
                 } catch (err) {
-                    console.log("Can't open " + pathname);
-                    this.fcbToFdMap.delete(z80.regs.de);
+                    this.log.write("Can't open " + pathname + "\n");
+                    fcb.fd = 0;
                     z80.regs.a = 0xFF; // Error.
                 }
                 break;
@@ -257,21 +339,56 @@ class Cpm implements Hal {
 
             case 16: { // Close file.
                 const fcb = new Fcb(this.memory.subarray(z80.regs.de));
-                this.log.write("Closing " + fcb.getFilename() + "\n");
-                let fd = this.fcbToFdMap.get(z80.regs.de);
-                if (fd === undefined) {
+                this.log.write(`Closing ${fcb.getFilename()}\n`);
+                let fd = fcb.fd;
+                if (fd === 0) {
                     throw new Error("Closing unopened FCB");
                 }
                 fs.closeSync(fd);
-                this.fcbToFdMap.delete(fd);
+                fcb.fd = 0;
                 z80.regs.a = 0x00; // Success.
+                const i = this.activeFcbs.indexOf(z80.regs.de);
+                if (i === -1) {
+                    this.log.write("Error: Did not find FCB " + z80.regs.de + "\n");
+                } else {
+                    this.activeFcbs.splice(i, 1);
+                }
+                break;
+            }
+
+            case 17: { // Search for first.
+                const fcb = new Fcb(this.memory.subarray(z80.regs.de));
+                this.log.write(`Search for first ${fcb.getFilename()}\n`);
+                fcb.dump(this.log, z80.regs.de);
+                const dirName = this.getDriveDir(fcb);
+                const dir = fs.opendirSync(dirName);
+                this.dirEntries = [];
+                while (true) {
+                    const entry = dir.readSync();
+                    if (entry === null) {
+                        break;
+                    }
+                    if (entry.isFile()) {
+                        this.dirEntries.push(entry.name);
+                    }
+                }
+                dir.closeSync();
+                // May as well sort.
+                this.dirEntries.sort();
+                this.searchForNextDirEntry(z80);
+                break;
+            }
+
+            case 18: { // Search for next.
+                this.log.write(`Search for next\n`);
+                this.searchForNextDirEntry(z80);
                 break;
             }
 
             case 19: { // Delete file.
                 const fcb = new Fcb(this.memory.subarray(z80.regs.de));
                 // TODO the filename can contain wildcards.
-                this.log.write("Deleting " + fcb.getFilename() + "\n");
+                this.log.write(`Deleting ${fcb.getFilename()}\n`);
                 const pathname = this.makePathname(fcb);
                 try {
                     fs.accessSync(pathname); // Throws if file doesn't exist.
@@ -286,44 +403,50 @@ class Cpm implements Hal {
 
             case 20: { // Read sequential.
                 const fcb = new Fcb(this.memory.subarray(z80.regs.de));
-                let fd = this.fcbToFdMap.get(z80.regs.de);
-                if (fd === undefined) {
+                let fd = fcb.fd;
+                if (fd === 0) {
                     throw new Error("Reading from unopened FCB");
                 }
                 const recordNumber = fcb.currentRecord;
-                this.log.write("Sequential reading record number " + recordNumber + " from " + fcb.getFilename() + "\n");
-                z80.regs.a = 0x00;
+                this.log.write(`Sequential reading record number ${recordNumber} from ${fcb.getFilename()}\n`);
+                fcb.dump(this.log, z80.regs.de);
                 const bytesRead = fs.readSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
                 if (bytesRead === 0) {
                     z80.regs.a = 0x01; // End of file.
                 } else {
                     // Fill rest with ^Z.
-                    for (let i = bytesRead; i < RECORD_SIZE; i++) {
-                        this.memory[this.dma + i] = 26; // ^Z
-                    }
+                    this.memory.fill(26, this.dma + bytesRead, this.dma + RECORD_SIZE);
+                    this.dumpDma();
+                    z80.regs.a = 0x00;
+                    fcb.currentRecord = recordNumber + 1;
                 }
-                fcb.currentRecord = recordNumber + 1;
+                z80.regs.l = z80.regs.a;
+                z80.regs.h = 0x00;
+                z80.regs.b = 0x00;
                 break;
             }
 
             case 21: { // Write sequential.
                 const fcb = new Fcb(this.memory.subarray(z80.regs.de));
-                let fd = this.fcbToFdMap.get(z80.regs.de);
-                if (fd === undefined) {
+                let fd = fcb.fd;
+                if (fd === 0) {
                     throw new Error("Writing to unopened FCB");
                 }
                 const recordNumber = fcb.currentRecord;
-                this.log.write("Sequential writing record number " + recordNumber + " to " + fcb.getFilename() + "\n");
+                this.log.write(`Sequential writing record number ${recordNumber} to ${fcb.getFilename()}\n`);
+                fcb.dump(this.log, z80.regs.de);
+                this.dumpDma();
                 let bytesWritten: number;
                 try {
                     bytesWritten = fs.writeSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
-                    if (bytesWritten !== RECORD_SIZE) {
-                        throw new Error("Only wrote " + bytesWritten);
-                    }
                 } catch (err) {
                     console.log("Can't write to file");
                     console.log(err);
                     await this.exit();
+                    return;
+                }
+                if (bytesWritten !== RECORD_SIZE) {
+                    throw new Error("Only wrote " + bytesWritten);
                 }
                 fcb.currentRecord = recordNumber + 1;
                 z80.regs.a = 0x00; // Success.
@@ -332,20 +455,16 @@ class Cpm implements Hal {
 
             case 22: { // Make file.
                 const fcb = new Fcb(this.memory.subarray(z80.regs.de));
-                let fd = this.fcbToFdMap.get(z80.regs.de);
-                if (fd !== undefined) {
-                    throw new Error("Making an opened FCB");
-                }
+                fcb.clear();
                 this.log.write("Making " + fcb.getFilename() + "\n");
                 const pathname = this.makePathname(fcb);
                 try {
-                    fd = fs.openSync(pathname, "wx+");
-                    this.fcbToFdMap.set(z80.regs.de, fd);
-                    fcb.currentRecord = 0;
+                    fcb.fd = fs.openSync(pathname, "wx+");
                     z80.regs.a = 0x00; // Success.
+                    this.activeFcbs.push(z80.regs.de);
                 } catch (err) {
                     console.log("Can't make " + pathname);
-                    this.fcbToFdMap.delete(z80.regs.de);
+                    fcb.fd = 0;
                     z80.regs.a = 0xFF; // Error.
                 }
                 break;
@@ -379,21 +498,41 @@ class Cpm implements Hal {
 
             case 33: { // Random access read record.
                 const fcb = new Fcb(this.memory.subarray(z80.regs.de));
-                let fd = this.fcbToFdMap.get(z80.regs.de);
-                if (fd === undefined) {
+                let fd = fcb.fd;
+                if (fd === 0) {
                     throw new Error("Reading from unopened FCB");
                 }
                 const recordNumber = fcb.randomRecord;
-                this.log.write("Random reading record number " + recordNumber + " from " + fcb.getFilename() + "\n");
+                this.log.write(`Random reading record number ${recordNumber} from ${fcb.getFilename()}\n`);
                 z80.regs.a = 0x00;
                 const bytesRead = fs.readSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
                 if (bytesRead === 0) {
                     z80.regs.a = 0x01; // End of file.
-                } else if (bytesRead !== RECORD_SIZE) {
+                } else {
                     // Fill rest with ^Z.
                     for (let i = bytesRead; i < RECORD_SIZE; i++) {
                         this.memory[this.dma + i] = 26; // ^Z
                     }
+                    this.dumpDma();
+                }
+                fcb.currentRecord = recordNumber;
+                break;
+            }
+
+            case 34: { // Random access write record.
+                const fcb = new Fcb(this.memory.subarray(z80.regs.de));
+                let fd = fcb.fd;
+                if (fd === 0) {
+                    throw new Error("Writing to unopened FCB");
+                }
+                const recordNumber = fcb.randomRecord;
+                this.log.write(`Random writing record number ${recordNumber} to ${fcb.getFilename()}\n`);
+                this.dumpDma();
+                const bytesWritten = fs.writeSync(fd, this.memory, this.dma, RECORD_SIZE, recordNumber*RECORD_SIZE);
+                if (bytesWritten === 0) {
+                    z80.regs.a = 0x05; // Out of disk space.
+                } else {
+                    z80.regs.a = 0x00; // Success.
                 }
                 fcb.currentRecord = recordNumber;
                 break;
@@ -490,15 +629,87 @@ class Cpm implements Hal {
     }
 
     /**
-     * Make a full pathname from an FCB.
+     * Return the host directory for a FCB.
      */
-    private makePathname(fcb: Fcb): string {
-        const drive = fcb.drive === 0 ? this.currentDrive : fcb.drive - 1;
+    private getDriveDir(fcb: Fcb): string {
+        // Handle '?' (0x3F) to mean the current drive.
+        const drive = fcb.drive === 0 || fcb.drive === 0x3F ? this.currentDrive : fcb.drive - 1;
         const dir = this.driveDirMap.get(drive);
         if (dir === undefined) {
             throw new Error("No dir for drive " + drive);
         }
-        return path.join(dir, fcb.getFilename());
+
+        return dir;
+    }
+
+    /**
+     * Make a full pathname from an FCB.
+     */
+    private makePathname(fcb: Fcb): string {
+        return path.join(this.getDriveDir(fcb), fcb.getFilename());
+    }
+
+    /**
+     * Return the next directory entry in the list.
+     */
+    private searchForNextDirEntry(z80: Z80): void {
+        // Get the next filename alphabetically.
+        const filename = this.dirEntries.shift();
+        if (filename === undefined) {
+            // End of directory.
+            z80.regs.a = 0xFF;
+        } else {
+            // Clear FCB area.
+            this.memory.fill(0, this.dma, this.dma + 32);
+
+            // Clear rest of DMA.
+            this.memory.fill(0xE5, this.dma + 32, this.dma + RECORD_SIZE);
+
+            // Get the name and extension.
+            const parts = path.parse(filename);
+            const name = parts.name;
+            const ext = parts.ext.startsWith(".") ? parts.ext.substr(1) : parts.ext;
+
+            // Start with spaces.
+            this.memory.fill(0x20, this.dma + 1, this.dma + 12);
+
+            // Fill name.
+            for (let i = 0; i < name.length; i++) {
+                this.memory[this.dma + 1 + i] = name.charCodeAt(i);
+            }
+
+            // Fill extension.
+            for (let i = 0; i < ext.length; i++) {
+                this.memory[this.dma + 9 + i] = ext.charCodeAt(i);
+            }
+
+            // Wrote in directory entry zero.
+            z80.regs.a = 0x00;
+        }
+    }
+
+    /**
+     * Dump the record at the DMA location to the log file.
+     */
+    private dumpDma(): void {
+        for (let i = 0; i < RECORD_SIZE; i += 16) {
+            const address = this.dma + i;
+            let row = toHex(address, 4) + "  ";
+
+            for (let j = 0; j < 16; j++) {
+                row += toHex(this.memory[address + j], 2) + " ";
+                if (j == 7) {
+                    row += " ";
+                }
+            }
+            row += " |";
+            for (let j = 0; j < 16; j++) {
+                const ch = this.memory[address + j];
+                row += ch >= 32 && ch < 127 ? String.fromCodePoint(ch) : ".";
+            }
+            row += "|\n";
+            this.log.write(row);
+        }
     }
 }
 

@@ -12,9 +12,9 @@ directory.
 
 Status: Can run Sargon chess and the Zork series. Can load, compile, and run a Pascal program
 in Turbo Pascal, but doesn't handle the full-screen editor well. Most BDOS and CBIOS calls are
-not implemented, including writing files.
+not implemented.
 
 # License
 
-Copyright (c) Lawrence Kesteloot, [MIT license](LICENSE).
+Copyright &copy; Lawrence Kesteloot, [MIT license](LICENSE).
 
