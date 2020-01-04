@@ -1,0 +1,555 @@
+# The configurations that used for the recording, feel free to edit them
+config:
+
+  # Specify a command to be executed
+  # like `/bin/bash -l`, `ls`, or any other commands
+  # the default is bash for Linux
+  # or powershell.exe for Windows
+  command: bash -l
+  
+  # Specify the current working directory path
+  # the default is the current working directory path
+  cwd: /Users/lk/mine/cpm
+  
+  # Export additional ENV variables
+  env:
+    recording: true
+  
+  # Explicitly set the number of columns
+  # or use `auto` to take the current
+  # number of columns of your shell
+  cols: 80
+  
+  # Explicitly set the number of rows
+  # or use `auto` to take the current
+  # number of rows of your shell
+  rows: 24
+  
+  # Amount of times to repeat GIF
+  # If value is -1, play once
+  # If value is 0, loop indefinitely
+  # If value is a positive number, loop n times
+  repeat: 0
+  
+  # Quality
+  # 1 - 100
+  quality: 100
+  
+  # Delay between frames in ms
+  # If the value is `auto` use the actual recording delays
+  frameDelay: auto
+  
+  # Maximum delay between frames in ms
+  # Ignored if the `frameDelay` isn't set to `auto`
+  # Set to `auto` to prevent limiting the max idle time
+  maxIdleTime: 2000
+  
+  # The surrounding frame box
+  # The `type` can be null, window, floating, or solid`
+  # To hide the title use the value null
+  # Don't forget to add a backgroundColor style with a null as type
+  frameBox:
+    type: floating
+    title: cpm-emulator
+    style:
+      border: 0px black solid
+      # boxShadow: none
+      # margin: 0px
+  
+  # Add a watermark image to the rendered gif
+  # You need to specify an absolute path for
+  # the image on your machine or a URL, and you can also
+  # add your own CSS styles
+  watermark:
+    imagePath: null
+    style:
+      position: absolute
+      right: 15px
+      bottom: 15px
+      width: 100px
+      opacity: 0.9
+  
+  # Cursor style can be one of
+  # `block`, `underline`, or `bar`
+  cursorStyle: block
+  
+  # Font family
+  # You can use any font that is installed on your machine
+  # in CSS-like syntax
+  fontFamily: "Monaco, Lucida Console, Ubuntu Mono, Monospace"
+  
+  # The size of the font
+  fontSize: 12
+  
+  # The height of lines
+  lineHeight: 1
+  
+  # The spacing between letters
+  letterSpacing: 0
+  
+  # Theme
+  theme:
+    background: "transparent"
+    foreground: "#afafaf"
+    cursor: "#c7c7c7"
+    black: "#232628"
+    red: "#fc4384"
+    green: "#b3e33b"
+    yellow: "#ffa727"
+    blue: "#75dff2"
+    magenta: "#ae89fe"
+    cyan: "#708387"
+    white: "#d5d5d0"
+    brightBlack: "#626566"
+    brightRed: "#ff7fac"
+    brightGreen: "#c8ed71"
+    brightYellow: "#ebdf86"
+    brightBlue: "#75dff2"
+    brightMagenta: "#ae89fe"
+    brightCyan: "#b1c6ca"
+    brightWhite: "#f9f9f4"
+  
+# Records, feel free to edit them
+records:
+  - delay: 280
+    content: "\e[?1034h$ "
+  - delay: 1994
+    content: l
+  - delay: 108
+    content: s
+  - delay: 116
+    content: ' '
+  - delay: 115
+    content: '-'
+  - delay: 198
+    content: l
+  - delay: 64
+    content: ' '
+  - delay: 148
+    content: c
+  - delay: 72
+    content: p
+  - delay: 92
+    content: m
+  - delay: 226
+    content: '-'
+  - delay: 559
+    content: programs/
+  - delay: 492
+    content: "\r\n"
+  - delay: 5
+    content: "total 160\r\n-rw-r--r--@ 1 lk  staff  25472 Jan  4 12:29 TINST.COM\r\n-rw-r--r--@ 1 lk  staff   4480 Jan  4 12:30 TINST.DTA\r\n-rw-r--r--@ 1 lk  staff   3968 Jan  4 12:29 TINST.MSG\r\n-rw-r--r--@ 1 lk  staff  30720 Jan  4 12:30 TURBO.COM\r\n-rw-r--r--@ 1 lk  staff   1536 Jan  4 12:29 TURBO.MSG\r\n-rw-r--r--@ 1 lk  staff   1152 Jan  4 12:29 TURBO.OVR\r\n$ "
+  - delay: 1166
+    content: 'n'
+  - delay: 127
+    content: p
+  - delay: 80
+    content: m
+  - delay: 144
+    content: ' '
+  - delay: 140
+    content: r
+  - delay: 64
+    content: u
+  - delay: 19
+    content: 'n'
+  - delay: 82
+    content: ' '
+  - delay: 126
+    content: b
+  - delay: 89
+    content: u
+  - delay: 43
+    content: i
+  - delay: 53
+    content: l
+  - delay: 148
+    content: d
+  - delay: 324
+    content: "\r\n"
+  - delay: 190
+    content: "\r\n> cpm@1.0.0 build /Users/lk/mine/cpm\r\n> tsc\r\n\r\n"
+  - delay: 1870
+    content: '$ '
+  - delay: 443
+    content: 'n'
+  - delay: 139
+    content: o
+  - delay: 71
+    content: d
+  - delay: 157
+    content: e
+  - delay: 80
+    content: ' '
+  - delay: 182
+    content: i
+  - delay: 52
+    content: 'n'
+  - delay: 56
+    content: d
+  - delay: 145
+    content: e
+  - delay: 163
+    content: x
+  - delay: 112
+    content: .
+  - delay: 80
+    content: j
+  - delay: 132
+    content: s
+  - delay: 184
+    content: ' '
+  - delay: 462
+    content: '-'
+  - delay: 109
+    content: '-'
+  - delay: 99
+    content: d
+  - delay: 171
+    content: r
+  - delay: 104
+    content: i
+  - delay: 48
+    content: v
+  - delay: 104
+    content: e
+  - delay: 127
+    content: ' '
+  - delay: 96
+    content: c
+  - delay: 96
+    content: p
+  - delay: 68
+    content: m
+  - delay: 201
+    content: '-'
+  - delay: 166
+    content: programs/
+  - delay: 607
+    content: ' '
+  - delay: 2321
+    content: T
+  - delay: 304
+    content: I
+  - delay: 52
+    content: 'N'
+  - delay: 64
+    content: S
+  - delay: 107
+    content: T
+  - delay: 454
+    content: .
+  - delay: 183
+    content: C
+  - delay: 77
+    content: O
+  - delay: 60
+    content: M
+  - delay: 357
+    content: "\r\n"
+  - delay: 181
+    content: "\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n                 TURBO Pascal installation menu.\r\r\n          Choose installation item from the following:\r\r\n\r\r\n"
+  - delay: 5
+    content: "[S]creen installation   |   [C]ommand installation   |   [Q]uit\r\r\n\r\r\n\r\r\n                       Enter S, C, or Q: "
+  - delay: 987
+    content: "\r\r\n"
+  - delay: 80
+    content: "\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\nChoose one of the following terminals:\r\r\n\r\r\n  1) ADDS 20/25/30          17) Osborne 1\r\r\n  2) ADDS 40/60             18) Otrona Attache\r\r\n  3) ADDS Viewpoint-1A      19) Qume\r\r\n  4) ADM 3A                 20) RC-855 (ITT)\r\r\n  5) Ampex D80              21) Soroc 120/Apple CP/M\r\r\n  6) ANSI                   22) Soroc new models\r\r\n  7) DEC Rainbow, 8 bit     23) SSM-UB3\r\r\n  8) Hazeltine 1500         24) Tandberg TDV 2215\r\r\n  9) Hazeltine Esprit       25) Teleray series 10\r\r\n 10) Kaypro with hilite     26) "
+  - delay: 5
+    content: "Teletex 3000\r\r\n 11) Kaypro, no hilite      27) Texas Instruments\r\r\n 12) Lear-Siegler ADM-20    28) Visual 200\r\r\n 13) Lear-Siegler ADM-31    29) Wyse WY-100/200/300\r\r\n 14) Liberty                30) Zenith\r\r\n 15) Microbee VDU           31) None of the above   \r\r\n 16) Morrow MDT-20          32) Delete a definition \r\r\n\r\r\nWhich terminal? (Enter no. or ^Q to exit):  "
+  - delay: 1912
+    content: '6'
+  - delay: 531
+    content: "\r\r\nDo you want to modify this definition before installation?  (Y/N)?  "
+  - delay: 1018
+    content: "N\r\r\n"
+  - delay: 15
+    content: "\r\r\n\r\r\n                    Hardware dependent information \r\r\n\r\r\nOperating frequency of your microprocessor in MHz (for delays): 3 Change to: "
+  - delay: 1000
+    content: "\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n\r\r\n                 TURBO Pascal installation menu.\r\r\n          Choose installation item from the following:\r\r\n\r\r\n"
+  - delay: 5
+    content: "[S]creen installation   |   [C]ommand installation   |   [Q]uit\r\r\n\r\r\n\r\r\n                       Enter S, C, or Q: "
+  - delay: 959
+    content: "\r\r\n"
+  - delay: 6
+    content: '$ '
+  - delay: 1119
+    content: node index.js --drive cpm-programs/ TINST.COM
+  - delay: 691
+    content: "\b\e[K"
+  - delay: 209
+    content: "\b\e[K"
+  - delay: 156
+    content: "\b\e[K"
+  - delay: 163
+    content: "\b\e[K"
+  - delay: 153
+    content: "\b\e[K"
+  - delay: 434
+    content: "\b\e[K"
+  - delay: 157
+    content: "\b\e[K"
+  - delay: 320
+    content: "\b\e[K"
+  - delay: 264
+    content: U
+  - delay: 87
+    content: R
+  - delay: 153
+    content: B
+  - delay: 96
+    content: O
+  - delay: 258
+    content: .
+  - delay: 183
+    content: C
+  - delay: 67
+    content: O
+  - delay: 69
+    content: M
+  - delay: 811
+    content: "\r\n"
+  - delay: 80
+    content: "\e[0m\e[1m\e[f\e[2J---------------------------------------\r\r\nTURBO Pascal system\e[0m       Version 3.01A\r\r\n                           CP/M-80, Z80\r\r\n\r\r\nCopyright (C) 1983,84,85   \e[1mBORLAND Inc.\r\r\n---------------------------------------\r\r\n\r\nTerminal: ANSI\r\r\n\r\n\r\n\r\nInclude error messages (Y/N)? "
+  - delay: 1202
+    content: "Y\r\r\n\r\r\nLoading A:TURBO.MSG"
+  - delay: 17
+    content: "\e[f\e[2JL\e[0mogged drive:\e[1m A\r\r\n\r\nW\e[0mork file:\e[1m \r\r\nM\e[0main file:\e[1m \r\r\n\r\nE\e[0mdit     \e[1mC\e[0mompile  \e[1mR\e[0mun   \e[1mS\e[0mave\r\r\n\r\ne\e[1mX\e[0mecute  \e[1mD\e[0mir      \e[1mQ\e[0muit  compiler \e[1mO\e[0mptions\r\r\n\r\nText:     0 bytes (8118-8118)\r\r\nFree: 30951 bytes (8119-FA00)\r\r\n\e[1m\r\r\n>"
+  - delay: 1191
+    content: "\r\r\n\r\r\nWork file name: "
+  - delay: 1450
+    content: h
+  - delay: 502
+    content: "\b \b"
+  - delay: 172
+    content: H
+  - delay: 113
+    content: E
+  - delay: 143
+    content: L
+  - delay: 124
+    content: L
+  - delay: 171
+    content: O
+  - delay: 291
+    content: .
+  - delay: 216
+    content: P
+  - delay: 83
+    content: A
+  - delay: 29
+    content: S
+  - delay: 400
+    content: "\r\r\n\r\r\nLoading A:HELLO.PAS\r\r\nNew File"
+  - delay: 44
+    content: "\e[f\e[2J\e[02;01H \e[K\e[01;01H      \e[03;01H\e[K\e[04;01H\e[K\e[05;01H\e[K\e[06;01H\e[K\e[07;01H\e[K\e[08;01H\e[K\e[09;01H\e[K\e[10;01H\e[K\e[11;01H\e[K\e[12;01H\e[K\e[13;01H\e[K\e[14;01H\e[K\e[15;01H\e[K\e[16;01H\e[K\e[17;01H\e[K\e[18;01H\e[K\e[19;01H\e[K\e[20;01H\e[K\e[21;01H\e[K\e[22;01H\e[K\e[23;01H\e[K\e[24;01H\e[K\e[02;01H\e[01;01H\e[K\e[0m\e[01;43HA:HELLO.PAS\e[01;07HLine \e[01;17HCol \e[01;25HInsert    Indent\e[01;21H1  \e[02;01H\e[01;12H1    \e[02;01H"
+  - delay: 844
+    content: "\e[02;01H\e[1mP\e[K\e[01;01H      \e[02;02H\e[01;21H\e[0m2  \e[02;02H"
+  - delay: 354
+    content: "\e[02;02H\e[1mr\e[K\e[01;01H      \e[02;03H\e[01;21H\e[0m3  \e[02;03H"
+  - delay: 112
+    content: "\e[02;03H\e[1mo\e[K\e[01;01H      \e[02;04H\e[01;21H\e[0m4  \e[02;04H"
+  - delay: 54
+    content: "\e[02;04H\e[1mg\e[K\e[01;01H      \e[02;05H\e[01;21H\e[0m5  \e[02;05H"
+  - delay: 55
+    content: "\e[02;05H\e[1mr\e[K\e[01;01H      \e[02;06H\e[01;21H\e[0m6  \e[02;06H"
+  - delay: 132
+    content: "\e[02;06H\e[1ma\e[K\e[01;01H      \e[02;07H\e[01;21H\e[0m7  \e[02;07H"
+  - delay: 48
+    content: "\e[02;07H\e[1mm\e[K\e[01;01H      \e[02;08H\e[01;21H\e[0m8  \e[02;08H"
+  - delay: 70
+    content: "\e[02;08H\e[1m \e[K\e[01;01H      \e[02;09H\e[01;21H\e[0m9  \e[02;09H"
+  - delay: 144
+    content: "\e[02;09H\e[1mH\e[K\e[01;01H      \e[02;10H\e[01;21H\e[0m10 \e[02;10H"
+  - delay: 125
+    content: "\e[02;10H\e[1me\e[K\e[01;01H      \e[02;11H\e[01;21H\e[0m11 \e[02;11H"
+  - delay: 72
+    content: "\e[02;11H\e[1ml\e[K\e[01;01H      \e[02;12H\e[01;21H\e[0m12 \e[02;12H"
+  - delay: 132
+    content: "\e[02;12H\e[1ml\e[K\e[01;01H      \e[02;13H\e[01;21H\e[0m13 \e[02;13H"
+  - delay: 167
+    content: "\e[02;13H\e[1mo\e[K\e[01;01H      \e[02;14H\e[01;21H\e[0m14 \e[02;14H"
+  - delay: 252
+    content: "\e[02;14H\e[1m;\e[K\e[01;01H      \e[02;15H\e[01;21H\e[0m15 \e[02;15H"
+  - delay: 226
+    content: "\r\n\e[1L\e[02;01H\e[1mProgram Hello; \e[K\e[03;01H \e[K\e[03;01H\e[03;01H\e[01;21H\e[0m1  \e[03;01H\e[01;12H2    \e[03;01H"
+  - delay: 121
+    content: "\r\n\e[1L\e[03;01H\e[1m \e[K\e[04;01H \e[K\e[04;01H\e[04;01H\e[04;01H\e[01;12H\e[0m3    \e[04;01H"
+  - delay: 176
+    content: "\e[04;01H\e[1mB\e[K\e[04;02H\e[01;21H\e[0m2  \e[04;02H"
+  - delay: 193
+    content: "\e[04;02H\e[1me\e[K\e[04;03H\e[01;21H\e[0m3  \e[04;03H"
+  - delay: 195
+    content: "\e[04;03H\e[1mg\e[K\e[04;04H\e[01;21H\e[0m4  \e[04;04H"
+  - delay: 65
+    content: "\e[04;04H\e[1mi\e[K\e[04;05H\e[01;21H\e[0m5  \e[04;05H"
+  - delay: 57
+    content: "\e[04;05H\e[1mn\e[K\e[04;06H\e[01;21H\e[0m6  \e[04;06H"
+  - delay: 155
+    content: "\r\n\e[1L\e[04;01H\e[1mBegin \e[K\e[05;01H \e[K\e[05;01H\e[05;01H\e[01;21H\e[0m1  \e[05;01H\e[01;12H4    \e[05;01H"
+  - delay: 239
+    content: "\e[05;01H\e[1m \e[K\e[05;02H\e[01;21H\e[0m2  \e[05;02H"
+  - delay: 140
+    content: "\e[05;02H\e[1m \e[K\e[05;03H\e[01;21H\e[0m3  \e[05;03H"
+  - delay: 134
+    content: "\e[05;03H\e[1mW\e[K\e[05;04H\e[01;21H\e[0m4  \e[05;04H"
+  - delay: 169
+    content: "\e[05;04H\e[1mr\e[K\e[05;05H\e[01;21H\e[0m5  \e[05;05H"
+  - delay: 86
+    content: "\e[05;05H\e[1mi\e[K\e[05;06H\e[01;21H\e[0m6  \e[05;06H"
+  - delay: 95
+    content: "\e[05;06H\e[1mt\e[K\e[05;07H\e[01;21H\e[0m7  \e[05;07H"
+  - delay: 78
+    content: "\e[05;07H\e[1me\e[K\e[05;08H\e[01;21H\e[0m8  \e[05;08H"
+  - delay: 37
+    content: "\e[05;08H\e[1ml\e[K\e[05;09H\e[01;21H\e[0m9  \e[05;09H"
+  - delay: 103
+    content: "\e[05;09H\e[1mn\e[K\e[05;10H\e[01;21H\e[0m10 \e[05;10H"
+  - delay: 218
+    content: "\e[05;10H\e[1m(\e[K\e[05;11H\e[01;21H\e[0m11 \e[05;11H"
+  - delay: 229
+    content: "\e[05;11H\e[1m'\e[K\e[05;12H\e[01;21H\e[0m12 \e[05;12H"
+  - delay: 266
+    content: "\e[05;12H\e[1mH\e[K\e[05;13H\e[01;21H\e[0m13 \e[05;13H"
+  - delay: 103
+    content: "\e[05;13H\e[1me\e[K\e[05;14H\e[01;21H\e[0m14 \e[05;14H"
+  - delay: 97
+    content: "\e[05;14H\e[1ml\e[K\e[05;15H\e[01;21H\e[0m15 \e[05;15H"
+  - delay: 111
+    content: "\e[05;15H\e[1ml\e[K\e[05;16H\e[01;21H\e[0m16 \e[05;16H"
+  - delay: 171
+    content: "\e[05;16H\e[1mo\e[K\e[05;17H\e[01;21H\e[0m17 \e[05;17H"
+  - delay: 216
+    content: "\e[05;17H\e[1m \e[K\e[05;18H\e[01;21H\e[0m18 \e[05;18H"
+  - delay: 121
+    content: "\e[05;18H\e[1mw\e[K\e[05;19H\e[01;21H\e[0m19 \e[05;19H"
+  - delay: 74
+    content: "\e[05;19H\e[1mo\e[K\e[05;20H\e[01;21H\e[0m20 \e[05;20H"
+  - delay: 87
+    content: "\e[05;20H\e[1mr\e[K\e[05;21H\e[01;21H\e[0m21 \e[05;21H"
+  - delay: 128
+    content: "\e[05;21H\e[1ml\e[K\e[05;22H\e[01;21H\e[0m22 \e[05;22H"
+  - delay: 79
+    content: "\e[05;22H\e[1md\e[K\e[05;23H\e[01;21H\e[0m23 \e[05;23H"
+  - delay: 473
+    content: "\e[05;23H\e[1m!\e[K\e[05;24H\e[01;21H\e[0m24 \e[05;24H"
+  - delay: 694
+    content: "\e[05;24H\e[1m'\e[K\e[05;25H\e[01;21H\e[0m25 \e[05;25H"
+  - delay: 405
+    content: "\e[05;25H\e[1m)\e[K\e[05;26H\e[01;21H\e[0m26 \e[05;26H"
+  - delay: 390
+    content: "\e[05;26H\e[1m;\e[K\e[05;27H\e[01;21H\e[0m27 \e[05;27H"
+  - delay: 208
+    content: "\r\n\e[1L\e[05;01H\e[1m  Writeln('Hello world!'); \e[K\e[06;01H \e[K\e[06;01H\e[06;01H   \e[K\e[06;03H\e[01;21H\e[0m3  \e[06;03H\e[01;12H5    \e[06;03H"
+  - delay: 198
+    content: "\e[06;02H\e[1m \e[K\e[06;02H\e[01;21H\e[0m2  \e[06;02H"
+  - delay: 206
+    content: "\e[06;01H\e[1m \e[K\e[06;01H\e[01;21H\e[0m1  \e[06;01H"
+  - delay: 163
+    content: "\e[06;01H\e[1mE\e[K\e[06;02H\e[01;21H\e[0m2  \e[06;02H"
+  - delay: 74
+    content: "\e[06;02H\e[1mn\e[K\e[06;03H\e[01;21H\e[0m3  \e[06;03H"
+  - delay: 86
+    content: "\e[06;03H\e[1md\e[K\e[06;04H\e[01;21H\e[0m4  \e[06;04H"
+  - delay: 136
+    content: "\e[06;04H\e[1m.\e[K\e[06;05H\e[01;21H\e[0m5  \e[06;05H"
+  - delay: 1021
+    content: "\e[01;01H\e[1m^K"
+  - delay: 683
+    content: "\e[01;01H^Kd\e[24;01H\r\r\n>"
+  - delay: 904
+    content: "\r\r\n\e[f\e[2JL\e[0mogged drive:\e[1m A\r\r\n\r\nW\e[0mork file:\e[1m A:HELLO.PAS\r\r\nM\e[0main file:\e[1m \r\r\n\r\nE\e[0mdit     \e[1mC\e[0mompile  \e[1mR\e[0mun   \e[1mS\e[0mave\r\r\n\r\ne\e[1mX\e[0mecute  \e[1mD\e[0mir      \e[1mQ\e[0muit  compiler \e[1mO\e[0mptions\r\r\n\r\nText:    57 bytes (8118-8151)\r\r\nFree: 30894 bytes (8152-FA00)\r\r\n\e[1m\r\r\n>"
+  - delay: 1818
+    content: "\r\r\n\r\r\nCompiling \r\r\n\r  0"
+  - delay: 5
+    content: "\r  5 lines\r\r\n\r\nCode:    53 bytes (8153-8188)\r\r\nFree: 31855 bytes (8189-FDF8)\r\r\nData:     7 bytes (FDF9-FE00)\r\r\n\r\r\nRunning\r\r\nHello world!\r\r\n\e[0m\e[1m\r\r\n>"
+  - delay: 1934
+    content: "\r\r\n\e[f\e[2J\e[0mcompile -> \e[1mM\e[0memory\r\r\n           \e[1mC\e[0mom-file\r\r\n           c\e[1mH\e[0mn-file\r\r\n\r\n\e[1mF\e[0mind run-time error  \e[1mQ\e[0muit\r\r\n\r\n\e[1m>"
+  - delay: 1271
+    content: "\r\r\n\e[f\e[2J           M\e[0memory\r\r\ncompile -> \e[1mC\e[0mom-file\r\r\n           c\e[1mH\e[0mn-file\r\r\n\r\n\e[1mS\e[0mtart address:\e[1m 20E3\e[0m (min 20E3)\r\r\n\e[1mE\e[0mnd   address:\e[1m FB3C\e[0m (max FE00)\r\r\n\r\n\e[1mF\e[0mind run-time error  \e[1mQ\e[0muit\r\r\n\r\n\e[1m>"
+  - delay: 929
+    content: "\r\r\n\e[f\e[2JL\e[0mogged drive:\e[1m A\r\r\n\r\nW\e[0mork file:\e[1m A:HELLO.PAS\r\r\nM\e[0main file:\e[1m \r\r\n\r\nE\e[0mdit     \e[1mC\e[0mompile  \e[1mR\e[0mun   \e[1mS\e[0mave\r\r\n\r\ne\e[1mX\e[0mecute  \e[1mD\e[0mir      \e[1mQ\e[0muit  compiler \e[1mO\e[0mptions\r\r\n\r\nText:    57 bytes (8118-8151)\r\r\nFree: 30894 bytes (8152-FA00)\r\r\n\e[1m\r\r\n>"
+  - delay: 936
+    content: "\r\r\n"
+  - delay: 12
+    content: "\r\r\nCompiling  --> A:HELLO.COM\r\r\n\r  0"
+  - delay: 7
+    content: "\r  5 lines\r\r\n\r\nCode:    53 bytes (20E3-2118)\r\r\nFree: 55707 bytes (2119-FAB4)\r\r\nData:   135 bytes (FAB5-FB3C)\r\r\n\r\r\n>"
+  - delay: 2387
+    content: "\r\r\nWorkfile A:HELLO.PAS not saved. Save (Y/N)? "
+  - delay: 1647
+    content: "Y\r\r\n\r\r\nSaving A:HELLO.PAS\n"
+  - delay: 7
+    content: '$ '
+  - delay: 1018
+    content: l
+  - delay: 112
+    content: s
+  - delay: 134
+    content: ' '
+  - delay: 185
+    content: '-'
+  - delay: 1153
+    content: l
+  - delay: 108
+    content: ' '
+  - delay: 293
+    content: c
+  - delay: 59
+    content: p
+  - delay: 92
+    content: m
+  - delay: 189
+    content: '-'
+  - delay: 169
+    content: programs/
+  - delay: 1120
+    content: "\r\n"
+  - delay: 6
+    content: "total 192\r\n-rw-r--r--  1 lk  staff   8320 Jan  4 12:34 HELLO.COM\r\n-rw-r--r--  1 lk  staff    128 Jan  4 12:34 HELLO.PAS\r\n-rw-r--r--@ 1 lk  staff  25472 Jan  4 12:29 TINST.COM\r\n-rw-r--r--@ 1 lk  staff   4480 Jan  4 12:34 TINST.DTA\r\n-rw-r--r--@ 1 lk  staff   3968 Jan  4 12:29 TINST.MSG\r\n-rw-r--r--@ 1 lk  staff  30720 Jan  4 12:34 TURBO.COM\r\n-rw-r--r--@ 1 lk  staff   1536 Jan  4 12:29 TURBO.MSG\r\n-rw-r--r--@ 1 lk  staff   1152 Jan  4 12:29 TURBO.OVR\r\n$ "
+  - delay: 2609
+    content: ls -l cpm-programs/
+  - delay: 348
+    content: "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bnode index.js --drive cpm-programs/ TURBO.COM"
+  - delay: 1294
+    content: "\b\e[K"
+  - delay: 584
+    content: "\b\e[K"
+  - delay: 33
+    content: "\b\e[K"
+  - delay: 34
+    content: "\b\e[K"
+  - delay: 35
+    content: "\b\e[K"
+  - delay: 97
+    content: "\b\e[K"
+  - delay: 164
+    content: "\b\e[K"
+  - delay: 143
+    content: "\b\e[K"
+  - delay: 134
+    content: "\b\e[K"
+  - delay: 233
+    content: H
+  - delay: 99
+    content: E
+  - delay: 117
+    content: L
+  - delay: 124
+    content: L
+  - delay: 179
+    content: O
+  - delay: 253
+    content: .
+  - delay: 208
+    content: C
+  - delay: 68
+    content: O
+  - delay: 67
+    content: M
+  - delay: 344
+    content: "\r\n"
+  - delay: 79
+    content: "Hello world!\r\r\n$ "
+  - delay: 2950
+    content: "logout\r\n"

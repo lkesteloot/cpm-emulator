@@ -1,0 +1,15 @@
+
+To make demo GIF:
+
+    npm install terminalizer -D
+    npx terminalizer record demo
+    (edit demo.yml, edit window title)
+    npx terminalizer render demo
+    cp render...gif large.gif
+    npm install @gumlet/gif-resize -D
+    node
+    > const gifResize = require('@gumlet/gif-resize');
+    > const fs = require("fs");
+    > const buf = fs.readFileSync("large.gif")
+    > gifResize({ width: 600 })(buf).then(data => fs.writeFileSync("demo.gif", data))
+
