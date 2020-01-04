@@ -478,7 +478,7 @@ records:
   - delay: 2387
     content: "\r\r\nWorkfile A:HELLO.PAS not saved. Save (Y/N)? "
   - delay: 1647
-    content: "Y\r\r\n\r\r\nSaving A:HELLO.PAS\n"
+    content: "Y\r\r\n\r\r\nSaving A:HELLO.PAS\r\n"
   - delay: 7
     content: '$ '
   - delay: 1018
