@@ -8,16 +8,17 @@
   },
   "keywords": [],
   "author": "Lawrence Kesteloot <lk@teamten.com> (https://www.teamten.com/lawrence/)",
+  "repository": "https://github.com/lkesteloot/cpm-emulator",
   "license": "MIT",
   "dependencies": {
-    "commander": "^4.0.1",
+    "commander": "^4.1.0",
     "null-writable": "^1.0.5",
-    "z80-base": "^1.0.3",
-    "z80-disasm": "^1.0.3",
+    "z80-base": "^1.0.4",
+    "z80-disasm": "^1.0.5",
     "z80-emulator": "^1.0.4"
   },
   "devDependencies": {
-    "@types/node": "^13.1.2",
+    "@types/node": "^13.1.6",
     "typescript": "^3.7.4"
   }
 }
