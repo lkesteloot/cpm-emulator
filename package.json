@@ -13,7 +13,7 @@
   "dependencies": {
     "commander": "^4.1.0",
     "null-writable": "^1.0.5",
-    "z80-base": "^1.0.4",
+    "z80-base": "^1.0.6",
     "z80-disasm": "^1.0.5",
     "z80-emulator": "^1.0.4"
   },
