@@ -6,7 +6,7 @@ import {Writable} from "stream";
 import {toHex} from "z80-base";
 import {Disasm, Instruction} from "z80-disasm";
 import {Hal, Z80} from "z80-emulator";
-import NullWritable from "null-writable";
+import {NullWritable} from "null-writable";
 
 // Compile-time configuration.
 const DUMP_ASSEMBLY = false;
@@ -848,9 +848,10 @@ class Cpm implements Hal {
  * Create a map from PC location to disassembled instruction.
  */
 function makeInstructionMap(bin: Uint8Array, org: number): Map<number, Instruction> {
-    const disasm = new Disasm(bin);
-    disasm.org = org;
-    const instructions = disasm.disassembleAll();
+    const disasm = new Disasm();
+    disasm.addChunk(bin, org);
+    disasm.addEntryPoint(org);
+    const instructions = disasm.disassemble();
     return new Map<number, Instruction>(
         instructions.map((instruction) => [instruction.address, instruction]));
 }

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "build": "tsc"
   },
@@ -13,9 +14,9 @@
   "dependencies": {
     "commander": "^4.1.0",
     "null-writable": "^1.0.5",
-    "z80-base": "^1.0.6",
-    "z80-disasm": "^1.0.5",
-    "z80-emulator": "^1.0.4"
+    "z80-base": "^2.0.1",
+    "z80-disasm": "^2.2.3",
+    "z80-emulator": "^2.3.0"
   },
   "devDependencies": {
     "@types/node": "^13.1.6",
