@@ -3,14 +3,14 @@ import * as fs from "fs";
 import * as path from "path";
 import readline from "readline";
 import {Writable} from "stream";
-import {toHex} from "z80-base";
+import {toHex, lo, hi, inc16} from "z80-base";
 import {Disasm, Instruction} from "z80-disasm";
 import {Hal, Z80} from "z80-emulator";
 import {NullWritable} from "null-writable";
 
 // Compile-time configuration.
 const DUMP_ASSEMBLY = false;
-const WRITE_LOG = false;
+const WRITE_LOG = true;
 const WRITE_PRINTER = false;
 
 const LOAD_ADDRESS = 0x0100;
@@ -293,13 +293,13 @@ class Cpm implements Hal {
 
         // Warm boot.
         this.memory[0] = 0xC3; // JP
-        this.memory[1] = (CBIOS_ADDRESS + 3) & 0xFF;
-        this.memory[2] = ((CBIOS_ADDRESS + 3) >> 8) & 0xFF;
+        this.memory[1] = lo(CBIOS_ADDRESS + 3);
+        this.memory[2] = hi(CBIOS_ADDRESS + 3);
 
         // Call our BDOS at the CP/M syscall address.
         this.memory[CPM_CALL_ADDRESS] = 0xC3; // JP
-        this.memory[CPM_CALL_ADDRESS + 1] = BDOS_ADDRESS & 0xFF;
-        this.memory[CPM_CALL_ADDRESS + 2] = (BDOS_ADDRESS >> 8) & 0xFF;
+        this.memory[CPM_CALL_ADDRESS + 1] = lo(BDOS_ADDRESS);
+        this.memory[CPM_CALL_ADDRESS + 2] = hi(BDOS_ADDRESS);
         this.memory[BDOS_ADDRESS] = 0xC9; // RET
 
         // Set all CBIOS routines to just return.
@@ -404,6 +404,19 @@ class Cpm implements Hal {
                     z80.regs.a = ch;
                 } else {
                     process.stdout.write(String.fromCodePoint(value));
+                }
+                break;
+            }
+
+            case 9: { // Print $-terminated string.
+                let s = z80.regs.de;
+                while (true) {
+                    const ch = String.fromCodePoint(this.readMemory(s));
+                    if (ch === "$") {
+                        break;
+                    }
+                    process.stdout.write(ch);
+                    s = inc16(s);
                 }
                 break;
             }
@@ -913,23 +926,30 @@ async function step() {
 
     z80.step();
 
-    if (z80.regs.pc === BDOS_ADDRESS) {
+    const pc = z80.regs.pc;
+    if (pc === BDOS_ADDRESS) {
         await cpm.handleBdosCall(z80);
-    } else if (z80.regs.pc >= CBIOS_ADDRESS) {
+    } else if (pc >= CBIOS_ADDRESS) {
         await cpm.handleCbiosCall(z80);
-    } else if (z80.regs.pc === 0) {
+    } else if (pc === 0) {
         await cpm.exit();
-    } else if (z80.regs.pc < LOAD_ADDRESS && z80.regs.pc !== CPM_CALL_ADDRESS) {
-        log.write("Unhandled PC address: 0x" + toHex(z80.regs.pc, 4) + "\n");
+    } else if (pc < LOAD_ADDRESS && pc !== CPM_CALL_ADDRESS) {
+        log.write("Unhandled PC address: 0x" + toHex(pc, 4) + "\n");
     }
 }
 
 async function tick() {
+    const beforeClock = z80.hal.tStateCount;
+    const beforeTime = Date.now();
     for (let i = 0; i < 100_000; i++) {
         await step();
     }
+    const elapsedClock = z80.hal.tStateCount - beforeClock;
+    const elapsedTime = Date.now() - beforeTime;
+    const hz = Math.round(elapsedClock/elapsedTime*1000);
+    // console.log(elapsedClock, elapsedTime, hz);
 }
 function go() {
-   tick().then(r => setTimeout(go, 0));
+   tick().then(() => setTimeout(go, 0));
 }
 go();
